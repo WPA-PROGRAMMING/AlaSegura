@@ -1,34 +1,57 @@
-// frontend/src/App.jsx
+// src/App.jsx
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import AuthPage from './pages/AuthPage';
+import UserPage from './pages/UserPage';
+import DriverPage from './pages/DriverPage';
+import OwnerPage from './pages/OwnerPage';
 
 function App() {
-  const [backendStatus, setBackendStatus] = useState(null);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchBackend = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/health');
-        setBackendStatus(res.data);
-      } catch (error) {
-        console.error('Error al conectar con backend:', error);
-        setBackendStatus({ error: 'No se pudo conectar al backend' });
-      }
-    };
-    fetchBackend();
+    const storedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    if (storedUser && token) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-      <h1 className="text-3xl font-bold text-blue-700 mb-4">AlaSegura</h1>
-      {backendStatus ? (
-        <div className="bg-white p-6 rounded shadow">
-          <p className="text-green-600 font-semibold">Backend: {backendStatus.message}</p>
+  const handleLogin = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  }
+
+  if (!user) {
+    return (
+      <Router>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <AuthPage onLogin={handleLogin} />
         </div>
-      ) : (
-        <p>Cargando...</p>
-      )}
-    </div>
+      </Router>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/user/*" element={user.role === 'usuario' ? <UserPage onLogout={handleLogout} user={user} /> : <Navigate to="/user" />} />
+        <Route path="/driver/*" element={user.role === 'chofer' ? <DriverPage onLogout={handleLogout} user={user} /> : <Navigate to="/driver" />} />
+        <Route path="/owner/*" element={user.role === 'dueño' ? <OwnerPage onLogout={handleLogout} user={user} /> : <Navigate to="/owner" />} />
+        <Route path="*" element={<Navigate to={`/${user.role === 'usuario' ? 'user' : user.role === 'chofer' ? 'driver' : 'owner'}`} />} />
+      </Routes>
+    </Router>
   );
 }
 
