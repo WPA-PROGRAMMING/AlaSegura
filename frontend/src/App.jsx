@@ -1,70 +1,39 @@
 // src/App.jsx
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import UserPage from './pages/UserPage';
 import DriverPage from './pages/DriverPage';
 import OwnerPage from './pages/OwnerPage';
 
-// Componente para redirigir según rol
-function RoleRedirect({ user }) {
-  const location = useLocation();
+// Componente para manejar la redirección basada en rol
+function RoleBasedRedirect({ user }) {
+  const navigate = useNavigate();
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
+  useEffect(() => {
+    if (user) {
+      const rolePath = user.role === 'usuario' ? '/user' : 
+                       user.role === 'chofer' ? '/driver' : 
+                       '/owner';
+      navigate(rolePath, { replace: true });
+    }
+  }, [user, navigate]);
 
-  let targetPath = '/';
-  if (user.role === 'usuario') targetPath = '/user';
-  else if (user.role === 'chofer') targetPath = '/driver';
-  else if (user.role === 'dueño') targetPath = '/owner';
-
-  // Solo redirige si no estamos ya en el destino
-  if (location.pathname !== targetPath) {
-    return <Navigate to={targetPath} replace />;
-  }
-
-  return null; // ya estamos en la ruta correcta
+  return null;
 }
 
-// Componente interno con enrutamiento
-function AppRoutes({ user, onLogin, onLogout }) {
-  return (
-    <Routes>
-      <Route path="/" element={<AuthPage onLogin={onLogin} />} />
-      
-      <Route 
-        path="/user/*" 
-        element={user?.role === 'usuario' ? <UserPage user={user} onLogout={onLogout} /> : <Navigate to="/" replace />} 
-      />
-      <Route 
-        path="/driver/*" 
-        element={user?.role === 'chofer' ? <DriverPage user={user} onLogout={onLogout} /> : <Navigate to="/" replace />} 
-      />
-      <Route 
-        path="/owner/*" 
-        element={user?.role === 'dueño' ? <OwnerPage user={user} onLogout={onLogout} /> : <Navigate to="/" replace />} 
-      />
-      
-      {/* Redirección post-login */}
-      <Route path="*" element={<RoleRedirect user={user} />} />
-    </Routes>
-  );
-}
-
-// Componente raíz
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('user');
     const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
     
-    if (token && userData) {
+    if (storedUser && token) {
       try {
-        const parsedUser = JSON.parse(userData);
-        if (parsedUser && parsedUser.role) {
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser && parsedUser.role && ['usuario', 'chofer', 'dueño'].includes(parsedUser.role)) {
           setUser(parsedUser);
         } else {
           localStorage.removeItem('token');
@@ -80,6 +49,8 @@ export default function App() {
   }, []);
 
   const handleLogin = (userData) => {
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', userData.token);
     setUser(userData);
   };
 
@@ -92,14 +63,39 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p>Cargando...</p>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <p className="mt-2 text-gray-600">Cargando aplicación...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <BrowserRouter>
-      <AppRoutes user={user} onLogin={handleLogin} onLogout={handleLogout} />
-    </BrowserRouter>
+    <Router>
+      <Routes>
+        <Route 
+          path="/" 
+          element={user ? <RoleBasedRedirect user={user} /> : <AuthPage onLogin={handleLogin} />} 
+        />
+        
+        <Route 
+          path="/user/*" 
+          element={user?.role === 'usuario' ? <UserPage user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} 
+        />
+        
+        <Route 
+          path="/driver/*" 
+          element={user?.role === 'chofer' ? <DriverPage user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} 
+        />
+        
+        <Route 
+          path="/owner/*" 
+          element={user?.role === 'dueño' ? <OwnerPage user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />} 
+        />
+        
+        <Route path="*" element={<Navigate to={user ? `/${user.role === 'usuario' ? 'user' : user.role === 'chofer' ? 'driver' : 'owner'}` : '/'} replace />} />
+      </Routes>
+    </Router>
   );
 }
