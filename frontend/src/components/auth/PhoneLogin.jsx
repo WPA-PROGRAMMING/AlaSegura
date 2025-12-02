@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import api from '../../services/api';
 
-export default function PhoneLogin({ onOtpRequested }) {
+export default function PhoneLogin({ onOtpRequested, onExistingUser }) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,10 +17,20 @@ export default function PhoneLogin({ onOtpRequested }) {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/request-otp', { phone });
-      onOtpRequested(phone);
+      // Verificar si el número ya existe
+      const checkRes = await api.get(`/auth/check-phone/${phone}`);
+      
+      if (checkRes.data.exists) {
+        // Ya existe: solo necesita OTP
+        await api.post('/auth/request-otp', { phone });
+        onExistingUser(phone);
+      } else {
+        // Es nuevo: necesita OTP + registro
+        await api.post('/auth/request-otp', { phone });
+        onOtpRequested(phone);
+      }
     } catch (err) {
-      setError('Error al enviar OTP. Intenta de nuevo.');
+      setError('Error al procesar el número. Intenta de nuevo.');
       console.error(err);
     }
     setLoading(false);
@@ -43,7 +53,7 @@ export default function PhoneLogin({ onOtpRequested }) {
         disabled={loading}
         className="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
       >
-        {loading ? 'Enviando...' : 'Enviar código'}
+        {loading ? 'Verificando...' : 'Continuar'}
       </button>
     </form>
   );
